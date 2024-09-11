@@ -49,7 +49,7 @@ The backend service is the core of this application, managing users, tasks, coll
 - **API:** REST API for communication between  mobile app, and backend  
 - **ORM:** EntityFrameworkCore 
 - **Authentication:** JWT (JSON Web Tokens)  
-- **AI Recommendations:** Python / Machine Learning models (optional)
+- **AI Recommendations:** Python / Machine Learning models
 
 ---
 ## **Project Structure**
