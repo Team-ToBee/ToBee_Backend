@@ -1,26 +1,34 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using UserService.API.Data;
 using UserService.API.Models;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// add database to the container
 builder.Services.AddDbContext<AppDbContext>(options =>
-{
-	options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-});
+	options.UseNpgsql(builder.Configuration.GetConnectionString("Database")));
 
-builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
-	.AddEntityFrameworkStores<AppDbContext>();
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+	.AddEntityFrameworkStores<AppDbContext>()
+	.AddDefaultTokenProviders();
 
+builder.Services.AddAuthentication()
+	.AddGoogle(options =>
+	{
+		var googleAuth = builder.Configuration.GetSection("Authentication:Google");
+		options.ClientId = googleAuth["ClientId"];
+		options.ClientSecret = googleAuth["ClientSecret"];
+	})
+	.AddFacebook(options =>
+	{
+		var facebookAuth = builder.Configuration.GetSection("Authentication:Facebook");
+		options.AppId = facebookAuth["AppId"];
+		options.AppSecret = facebookAuth["AppSecret"];
+	});
 
 var app = builder.Build();
 
@@ -31,9 +39,9 @@ if (app.Environment.IsDevelopment())
 	app.UseSwaggerUI();
 }
 
-app.MapIdentityApi<ApplicationUser>();
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
