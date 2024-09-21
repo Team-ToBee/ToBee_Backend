@@ -22,7 +22,7 @@ namespace ToBee.API.Controllers
 		}
 
 		[HttpGet("user/progress-report")]
-		public async Task<ActionResult<ProgressReport>> GetProgressReport(DateTime startDate, DateTime endDate)
+		public async Task<ActionResult<ProgressReportDto>> GetProgressReport(DateTime startDate, DateTime endDate)
 		{
 			var userId = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -32,7 +32,30 @@ namespace ToBee.API.Controllers
 			}
 
 			var progressReport = await _progressReportService.GenerateProgressReportAsync(userId, startDate, endDate);
-			return Ok(progressReport);
+
+			// Map ProgressReport to ProgressReportDto
+			var progressReportDto = new ProgressReportDto
+			{
+				ReportId = progressReport.ReportId,
+				UserId = progressReport.UserId,
+				StartDate = progressReport.StartDate,
+				EndDate = progressReport.EndDate,
+				TotalFocusTime = progressReport.TotalFocusTime,
+				TotalTasksCompleted = progressReport.TotalTasksCompleted
+			};
+
+			return Ok(progressReportDto);
 		}
 	}
+
+	public class ProgressReportDto
+	{
+		public Guid ReportId { get; set; }
+		public string UserId { get; set; }
+		public DateTime StartDate { get; set; }
+		public DateTime EndDate { get; set; }
+		public double TotalFocusTime { get; set; }
+		public int TotalTasksCompleted { get; set; }
+	}
+
 }

@@ -1,9 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 using ToBee.API.Models;
+using ToBee.API.Models.DTOs;
 using ToBee.API.Repositories.PomodoroSessionRepository;
+using ToBee.API.Repositories.TaskServiceRepository;
 using ToBee.API.Services;
 
 namespace ToBee.API.Controllers
@@ -15,39 +19,79 @@ namespace ToBee.API.Controllers
 	{
 		private readonly IPomodoroSessionRepository _sessionRepository;
 		private readonly PomodoroTimerService _pomodoroTimerService;
+		private readonly UserManager<ApplicationUser> _userManager;
+		private readonly ITaskServiceRepository _taskServiceRepository;
 
-		public PomodoroSessionController(IPomodoroSessionRepository sessionRepository, PomodoroTimerService pomodoroTimerService)
+		public PomodoroSessionController(IPomodoroSessionRepository sessionRepository, PomodoroTimerService pomodoroTimerService, UserManager<ApplicationUser> userManager, ITaskServiceRepository taskServiceRepository)
 		{
 			_sessionRepository = sessionRepository;
 			_pomodoroTimerService = pomodoroTimerService;
+			_userManager = userManager;
+			_taskServiceRepository = taskServiceRepository;
 		}
 
 		/// <summary>
 		/// Creates a new Pomodoro session.
 		/// </summary>
-		/// <param name="session">The Pomodoro session to create.</param>
+		/// <param name="sessionDto">The Pomodoro session to create.</param>
 		/// <returns>The created session.</returns>
 		[HttpPost]
 		[SwaggerOperation(
-			Summary = "Creates a new Pomodoro session.",
-			Description = "Creates a new Pomodoro session.",
-			OperationId = "CreatePomodoroSession",
-			Tags = new[] { "PomodoroSession" }
-		)]
-		[SwaggerResponse(StatusCodes.Status201Created, "The created session.", typeof(PomodoroSession))]
+	Summary = "Creates a new Pomodoro session.",
+	Description = "Creates a new Pomodoro session.",
+	OperationId = "CreatePomodoroSession",
+	Tags = new[] { "PomodoroSession" }
+)]
+		[SwaggerResponse(StatusCodes.Status201Created, "The created session.", typeof(PomodoroSessionResponseDto))]
 		[SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid input.")]
-		public async Task<ActionResult<PomodoroSession>> CreatePomodoroSession([FromBody] PomodoroSession session)
+		public async Task<ActionResult<PomodoroSessionResponseDto>> CreatePomodoroSession([FromBody] PomodoroSessionCreateDto sessionDto)
 		{
 			if (!ModelState.IsValid)
 			{
 				return BadRequest(ModelState);
 			}
 
-			session.SessionId = Guid.NewGuid();
+			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+			var user = await _userManager.FindByIdAsync(userId);
+			if (user == null)
+			{
+				return BadRequest("Invalid UserId.");
+			}
+			var taskService = await _taskServiceRepository.GetTaskByIdAsync(sessionDto.TaskId);
+			if (taskService == null)
+			{
+				return BadRequest("Invalid TaskId.");
+			}
+
+			var session = new PomodoroSession
+			{
+				SessionId = Guid.NewGuid(),
+				UserId = userId,
+				TaskId = sessionDto.TaskId,
+				StartTime = sessionDto.StartTime,
+				EndTime = sessionDto.EndTime,
+				BreakDuration = sessionDto.BreakDuration,
+				Status = sessionDto.Status,
+				User = user,
+				TaskService = taskService
+			};
+
 			await _sessionRepository.CreateSessionAsync(session);
 
-			return CreatedAtAction(nameof(GetPomodoroSessionById), new { id = session.SessionId }, session);
+			var responseDto = new PomodoroSessionResponseDto
+			{
+				SessionId = session.SessionId,
+				UserId = session.UserId,
+				TaskId = session.TaskId,
+				StartTime = session.StartTime,
+				EndTime = session.EndTime,
+				BreakDuration = session.BreakDuration,
+				Status = session.Status
+			};
+
+			return CreatedAtAction(nameof(GetPomodoroSessionById), new { id = session.SessionId }, responseDto);
 		}
+
 
 		/// <summary>
 		/// Gets a Pomodoro session by ID.
@@ -61,17 +105,30 @@ namespace ToBee.API.Controllers
 			OperationId = "GetPomodoroSessionById",
 			Tags = new[] { "PomodoroSession" }
 		)]
-		[SwaggerResponse(StatusCodes.Status200OK, "The session.", typeof(PomodoroSession))]
+		[SwaggerResponse(StatusCodes.Status200OK, "The session.", typeof(PomodoroSessionResponseDto))]
 		[SwaggerResponse(StatusCodes.Status404NotFound, "Session not found.")]
-		public async Task<ActionResult<PomodoroSession>> GetPomodoroSessionById(Guid id)
+		public async Task<ActionResult<PomodoroSessionResponseDto>> GetPomodoroSessionById(Guid id)
 		{
 			var session = await _sessionRepository.GetSessionByIdAsync(id);
 			if (session == null)
 			{
 				return NotFound();
 			}
-			return Ok(session);
+
+			var responseDto = new PomodoroSessionResponseDto
+			{
+				SessionId = session.SessionId,
+				UserId = session.UserId,
+				TaskId = session.TaskId,
+				StartTime = session.StartTime,
+				EndTime = session.EndTime,
+				BreakDuration = session.BreakDuration,
+				Status = session.Status
+			};
+
+			return Ok(responseDto);
 		}
+
 
 		/// <summary>
 		/// Updates a Pomodoro session.
@@ -81,15 +138,15 @@ namespace ToBee.API.Controllers
 		/// <returns>No content.</returns>
 		[HttpPut("{id}")]
 		[SwaggerOperation(
-			Summary = "Updates a Pomodoro session.",
-			Description = "Updates a Pomodoro session.",
-			OperationId = "UpdatePomodoroSession",
-			Tags = new[] { "PomodoroSession" }
-		)]
+	Summary = "Updates a Pomodoro session.",
+	Description = "Updates a Pomodoro session.",
+	OperationId = "UpdatePomodoroSession",
+	Tags = new[] { "PomodoroSession" }
+)]
 		[SwaggerResponse(StatusCodes.Status204NoContent, "Session updated successfully.")]
 		[SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid input.")]
 		[SwaggerResponse(StatusCodes.Status404NotFound, "Session not found.")]
-		public async Task<IActionResult> UpdatePomodoroSession(Guid id, [FromBody] PomodoroSession session)
+		public async Task<IActionResult> UpdatePomodoroSession(Guid id, [FromBody] PomodoroSessionCreateDto sessionDto)
 		{
 			if (!ModelState.IsValid)
 			{
@@ -102,15 +159,24 @@ namespace ToBee.API.Controllers
 				return NotFound();
 			}
 
-			existingSession.StartTime = session.StartTime;
-			existingSession.EndTime = session.EndTime;
-			existingSession.BreakDuration = session.BreakDuration;
-			existingSession.Status = session.Status;
+			var taskService = await _taskServiceRepository.GetTaskByIdAsync(sessionDto.TaskId);
+			if (taskService == null)
+			{
+				return BadRequest("Invalid TaskId.");
+			}
+
+			existingSession.TaskId = sessionDto.TaskId;
+			existingSession.StartTime = sessionDto.StartTime;
+			existingSession.EndTime = sessionDto.EndTime;
+			existingSession.BreakDuration = sessionDto.BreakDuration;
+			existingSession.Status = sessionDto.Status;
+			existingSession.TaskService = taskService;
 
 			await _sessionRepository.UpdateSessionAsync(existingSession);
 
 			return NoContent();
 		}
+
 
 		/// <summary>
 		/// Deletes a Pomodoro session.
@@ -192,7 +258,6 @@ namespace ToBee.API.Controllers
 				return NotFound(ex.Message);
 			}
 		}
-
 
 		/// <summary>
 		/// Resumes a Pomodoro session.

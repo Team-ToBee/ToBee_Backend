@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 using ToBee.API.Dtos.TaskServiceDtos;
 using ToBee.API.Models;
 using ToBee.API.Repositories.TaskServiceRepository;
@@ -70,7 +71,10 @@ namespace ToBee.API.Controllers
 		[SwaggerResponse(StatusCodes.Status400BadRequest, "Invalid input.")]
 		public async Task<ActionResult<TaskServiceDto>> CreateTask(TaskServiceDto taskDto)
 		{
+			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 			var taskService = _mapper.Map<TaskService>(taskDto);
+			taskService.UserId = userId;
+
 			await _taskServiceRepository.AddTaskAsync(taskService);
 
 			var createdTaskDto = _mapper.Map<TaskServiceDto>(taskService);
@@ -93,7 +97,10 @@ namespace ToBee.API.Controllers
 				return BadRequest();
 			}
 
+			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 			var taskService = _mapper.Map<TaskService>(taskDto);
+			taskService.UserId = userId;
+
 			await _taskServiceRepository.UpdateTaskAsync(taskService);
 
 			return NoContent();

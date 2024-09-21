@@ -23,10 +23,21 @@ namespace ToBee.API.Services
 			session.Status = "In Progress";
 			await _sessionRepository.UpdateSessionAsync(session);
 
-			// Start a timer for the work interval
-			await Task.Delay(TimeSpan.FromMinutes(25), _cancellationTokenSource.Token);
-			await StartBreakAsync(sessionId);
+			// Start a timer for the work interval in a background task
+			_ = Task.Run(async () =>
+			{
+				try
+				{
+					await Task.Delay(TimeSpan.FromMinutes(25), _cancellationTokenSource.Token);
+					await StartBreakAsync(sessionId);
+				}
+				catch (TaskCanceledException)
+				{
+					
+				}
+			});
 		}
+
 
 		public void PauseSession()
 		{
